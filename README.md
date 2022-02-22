@@ -1,34 +1,42 @@
-Bluetooth Termal Printer
-=========================================
-Project diary
+# Bluetooth Termal Printer
 
+I love BLE stuff, it's awesome eseptially in reverse context. In this repo I am doing reverse engineering of the [cute catish termal printer from Aliexpress](https://aliexpress.ru/item/1005002722811359.html). This includes transmission protocol and Android app because of images encoding.
 
-My printer: https://aliexpress.ru/item/1005002722811359.html
+Goals:
+
+-[ ] Be able to pring from laptop
+  -[x] Reverse the transmission protocol
+  -[ ] Reverse the image's processing mechanism
 
 
 - [Bluetooth Termal Printer](#bluetooth-termal-printer)
-  - [Connect with bluetoothctl](#connect-with-bluetoothctl)
-  - [Printer's bluetooth part](#printers-bluetooth-part)
+  - [The Cat Printer](#the-cat-printer)
+    - [Bluetooth part](#bluetooth-part)
+      - [Connect with bluetoothctl](#connect-with-bluetoothctl)
     - [Services](#services)
-    - [Network communication](#network-communication)
-      - [Before a print](#before-a-print)
-        - [About pre-printing write requests](#about-pre-printing-write-requests)
-        - [About HCI package structure](#about-hci-package-structure)
-      - [Print](#print)
-  - [Write with Python and bluepy](#write-with-python-and-bluepy)
+    - [Communication process](#communication-process)
+    - [Connect with Python](#connect-with-python)
   - [Image](#image)
-    - [How to comtile an image from .pcap](#how-to-comtile-an-image-from-pcap)
+  - [iPrint reverse engenering](#iprint-reverse-engenering)
   - [TODO](#todo)
 
 
-The printer work stages:
+## The Cat Printer
 
-1. Long press to power on
-2. Green led started to blink - the printer is not connected
-3. Connect to the printer (using `bluetoothctl` or just open iPrint)
-4. Green led lights green - the printer is ready
+ [ pic ]
 
-## Connect with bluetoothctl
+It is supposed to be that the printer works with iPrint application. You connect your printer to the app, choose a picture to print, then iPrint process the image in some way and send it to a printer. Voila!
+
+How to connect to the printer:
+
+1. Long press to power on.
+2. Green led starts to blink (it means the printer is not connected).
+3. Connect to the printer (using `bluetoothctl` or just open iPrint).
+4. Green led lights green - the printer is ready.
+
+### Bluetooth part
+
+#### Connect with bluetoothctl
 
     [bluetooth]# menu scan
     [bluetooth]# clear
@@ -37,6 +45,7 @@ The printer work stages:
     ...
     [NEW] Device B7:26:A2:0D:CA:66 GT01
     ...
+
     [bluetooth]# pair B7:26:A2:0D:CA:66
     Attempting to pair with B7:26:A2:0D:CA:66
     [CHG] Device B7:26:A2:0D:CA:66 Connected: yes
@@ -102,38 +111,46 @@ The printer work stages:
     [CHG] Device B7:26:A2:0D:CA:66 ServicesResolved: yes
     [CHG] Device B7:26:A2:0D:CA:66 Paired: yes
 
-## Printer's bluetooth part
-
 ### Services
 
-It has two services:
+The printer has two services:
 
-1. 0xAE30
-   Characterustics:
-   1. UUID: 0xAE01 (Unknown, WRITE NO RESPONSE)
-   2. UUID: 0xAE02 (Unknown, NOTIFY)
-      Descriptors:
-      1. UUID: 0x2902
-   3. UUID: 0xAE03 (Unknown, WRITE NO RESPONSE)
-   4. UUID: 0xAE04 (Unknown, NOTIFY)
-      Descriptors:
-      1. UUID: 0x2902
-   5. UUID: 0xAE05 (Unknown, INDICATE)
-      Descriptors:
-      1. UUID: 0x2902
-   6. UUID: 0xAE10 (Unknown, READ, WRITE)
-2. 0xAE3A
-   Characterustics:
-   1. UUID: 0xAE3B (Unknown, WRITE NO RESPONSE)
-   2. UUID: 0xAE3C (Unknown, NOTIFY)
-      Descriptors:
-      1. UUID: 0x2902
+    0xAE30
+      Characterustics:
+        UUID: 0xAE01 (Unknown, WRITE NO RESPONSE)
+        UUID: 0xAE02 (Unknown, NOTIFY)
+            Descriptors:
+                UUID: 0x2902
+        UUID: 0xAE03 (Unknown, WRITE NO RESPONSE)
+        UUID: 0xAE04 (Unknown, NOTIFY)
+            Descriptors:
+                UUID: 0x2902
+        UUID: 0xAE05 (Unknown, INDICATE)
+            Descriptors:
+                UUID: 0x2902
+        UUID: 0xAE10 (Unknown, READ, WRITE)
 
-### Network communication
+    0xAE3A
+      Characterustics:
+        UUID: 0xAE3B (Unknown, WRITE NO RESPONSE)
+        UUID: 0xAE3C (Unknown, NOTIFY)
+            Descriptors:
+                UUID: 0x2902
+
+### Communication process
 
 At this point I suppose only WRITE requests matters.
 
-#### Before a print
+The following shows the communication process between iPrint and printer. Long story short, to print an image you should send three packages:
+
+- change MTU to 123
+- send `5178a80001000000ff5178a30001000000ff` on `0xae01`
+- send `5178bb0001000107ff` on `0xae01`
+
+You can find the pre-printing strings in `iPrint/classes/com/blueUtils/BluetoothUtils.java` if you ever dare to inspect this shitty code by yourself.
+
+<details><summary>In details</summary>
+<p>
 
 1. Service: `0xae30`, Characteristic: `0xae02` (**NOTIFY**), Desc: `0x2902`
 
@@ -250,204 +267,115 @@ At this point I suppose only WRITE requests matters.
                   [UUID: Unknown (0xae01)]
               Value: 5178bb0001000107ff
 
-##### About pre-printing write requests
+7. Service: `0xae30`, Characteristic: `0xae01` (**WRITE NO RESPONSE**)
 
-You can find the pre-printing headers in `iPrint/classes/com/blueUtils/BluetoothUtils.java` if you ever dare to inspect this shitty code.
+    *Start image transmission*. There is a chain of packets of 132 bytes each.
 
+    Service: `0xae30`, Characteristic: `0xae01` (**WRITE NO RESPONSE**)
 
+        Bluetooth Attribute Protocol
+            Opcode: Write Command (0x52)
+                0... .... = Authentication Signature: False
+                .1.. .... = Command: True
+                ..01 0010 = Method: Write Request (0x12)
+            Handle: 0x0006 (Unknown: Unknown)
+                [Service UUID: Unknown (0xae30)]
+                [UUID: Unknown (0xae01)]
+            Value: 5178a30001000000ff5178a40001003399ff5178a6000b00aa551738445f5f5f44382ca1…
 
-##### About HCI package structure
+    HEX:
 
-Full package structure from Wireshark:
+    `Value` starts with `'51 78'`
 
-    Frame 94: 21 bytes on wire (168 bits), 21 bytes captured (168 bits) on interface /tmp/wireshark_extcap_android, id 0
-        Interface id: 0 (/tmp/wireshark_extcap_android)
-        Encapsulation type: Bluetooth H4 with linux header (99)
-        Arrival Time: Sep  4, 2021 19:54:59.742056000 MSK
-        [Time shift for this packet: 0.000000000 seconds]
-        Epoch Time: 1630774499.742056000 seconds
-        [Time delta from previous captured frame: 0.007720000 seconds]
-        [Time delta from previous displayed frame: 0.007720000 seconds]
-        [Time since reference or first frame: 1.776077000 seconds]
-        Frame Number: 94
-        Frame Length: 21 bytes (168 bits)
-        Capture Length: 21 bytes (168 bits)
-        [Frame is marked: False]
-        [Frame is ignored: False]
-        Point-to-Point Direction: Sent (0)
-        [Protocols in frame: bluetooth:hci_h4:bthci_acl:btl2cap:btatt]
-    Bluetooth
-        [Source: 00:00:00_00:00:00 (00:00:00:00:00:00)]
-        [Destination: b7:26:a2:0d:ca:66 (b7:26:a2:0d:ca:66)]
-    Bluetooth HCI H4
-        [Direction: Sent (0x00)]
-        HCI Packet Type: ACL Data (0x02)
-    Bluetooth HCI ACL Packet
-        .... 0000 0000 0101 = Connection Handle: 0x005
-        ..00 .... .... .... = PB Flag: First Non-automatically Flushable Packet (0)
-        00.. .... .... .... = BC Flag: Point-To-Point (0)
-        Data Total Length: 16
-        Data
-        [Connect in frame: 3]
-        [Source BD_ADDR: 00:00:00_00:00:00 (00:00:00:00:00:00)]
-        [Source Device Name: ]
-        [Source Role: Unknown (0)]
-        [Destination BD_ADDR: b7:26:a2:0d:ca:66 (b7:26:a2:0d:ca:66)]
-        [Destination Device Name: ]
-        [Destination Role: Unknown (0)]
-        [Current Mode: Unknown (-1)]
-    Bluetooth L2CAP Protocol
-        Length: 12
-        CID: Attribute Protocol (0x0004)
-    Bluetooth Attribute Protocol
-        Opcode: Write Command (0x52)
-            0... .... = Authentication Signature: False
-            .1.. .... = Command: True
-            ..01 0010 = Method: Write Request (0x12)
-        Handle: 0x0006 (Unknown: Unknown)
-            [Service UUID: Unknown (0xae30)]
-            [UUID: Unknown (0xae01)]
-        Value: 5178bb0001000107ff
+        0000   02 05 00 7f 00 7b 00 04  00 52 06 00 51 78 a3 00
+        0010   01 00 00 00 ff 51 78 a4  00 01 00 33 99 ff 51 78
+        0020   a6 00 0b 00 aa 55 17 38  44 5f 5f 5f 44 38 2c a1
+        0030   ff 51 78 af 00 02 00 e0  2e 89 ff 51 78 be 00 01
+        0040   00 00 00 ff 51 78 bd 00  01 00 1e 5a ff 51 78 bf
+        0050   00 04 00 7f 7f 7f 03 a8  ff 51 78 bf 00 04 00 7f
+        0060   7f 7f 03 a8 ff 51 78 bf  00 04 00 7f 7f 7f 03 a8
+        0070   ff 51 78 bf 00 04 00 7f  7f 7f 03 a8 ff 51 78 bf
+        0080   00 04 00 7f
+</p>
+</details>
 
-HEX translation of the package above:
+### Connect with Python
 
-    0000   02 05 00 10 00 0c 00 04 00 52 06 00 51 78 bb 00   .........R..Qx..
-    0010   01 00 01 07 ff                                    .....
-
-As HCI Packet:
-
-            02            05 00 10 00     0c 00 04 00     52 06 00   51 78 bb 00 01 00 01 07 ff
-    | HCI package type | HCI ACL header | L2CAP header | ATT header |          value           |
-
-HCI Packet Types:
-
-| packet            | type |
-| ----------------- | ---- |
-| Command           | 0x01 |
-| Asynchronous Data | 0x02 |
-| Synchronous Data  | 0x03 |
-| Event             | 0x04 |
-| Extended Command  | 0x09 |
-
-HCI ACL (0x02) package structute:
-
-- Handle
-- Flags
-  - BP Flag: ...
-  - BC Flag: ...
-- Data total length (16 bytes)
-- Data (Incapsulates Bluetooth L2CAP package)
-
-L2CAP package structute:
-
-- Length (0-16 bits)
-- CID (17-32 bits)
-- Information payload (Incapsulates ATT package)
-
-CID: 0x0004 means there is L2CAP data (ATT) frame.
-
-ATT package structure:
-
-- ATT opcode
-- Handle
-- Value
-
-#### Print
-
-Packets each of 132 bytes.
-
-Service: `0xae30`, Characteristic: `0xae01` (**WRITE NO RESPONSE**)
-
-    Bluetooth Attribute Protocol
-        Opcode: Write Command (0x52)
-            0... .... = Authentication Signature: False
-            .1.. .... = Command: True
-            ..01 0010 = Method: Write Request (0x12)
-        Handle: 0x0006 (Unknown: Unknown)
-            [Service UUID: Unknown (0xae30)]
-            [UUID: Unknown (0xae01)]
-        Value: 5178a30001000000ff5178a40001003399ff5178a6000b00aa551738445f5f5f44382ca1…
-
-HEX:
-
-`Value` starts with `'51 78'`
-
-    0000   02 05 00 7f 00 7b 00 04  00 52 06 00 51 78 a3 00
-    0010   01 00 00 00 ff 51 78 a4  00 01 00 33 99 ff 51 78
-    0020   a6 00 0b 00 aa 55 17 38  44 5f 5f 5f 44 38 2c a1
-    0030   ff 51 78 af 00 02 00 e0  2e 89 ff 51 78 be 00 01
-    0040   00 00 00 ff 51 78 bd 00  01 00 1e 5a ff 51 78 bf
-    0050   00 04 00 7f 7f 7f 03 a8  ff 51 78 bf 00 04 00 7f
-    0060   7f 7f 03 a8 ff 51 78 bf  00 04 00 7f 7f 7f 03 a8
-    0070   ff 51 78 bf 00 04 00 7f  7f 7f 03 a8 ff 51 78 bf
-    0080   00 04 00 7f
-
-## Write with Python and bluepy
-
-    import codecs, json, six
-    from bluepy import btle
+```py
+import codecs, json, six
+from bluepy import btle
 
 
-    printer = btle.Peripheral(deviceAddr='B7:26:A2:0D:CA:66')
+printer = btle.Peripheral(deviceAddr='B7:26:A2:0D:CA:66')
 
-    # Set MTU
-    resp = printer.setMTU(123)
+# Set MTU
+resp = printer.setMTU(123)
 
-    # Write some params
-    printer.writeCharacteristic(6, codecs.decode('5178a80001000000ff5178a30001000000ff', 'hex'))
-    printer.writeCharacteristic(6, codecs.decode('5178bb0001000107ff', 'hex'))
+# Write some params
+printer.writeCharacteristic(6, codecs.decode('5178a80001000000ff5178a30001000000ff', 'hex'))
+printer.writeCharacteristic(6, codecs.decode('5178bb0001000107ff', 'hex'))
 
-    # Print image by 120 len parts
+# Print image by 120 len parts
 
-    for hex_str from hex_img:
-        printer.writeCharacteristic(6, codecs.decode(hex_str, 'hex'))
+for hex_str from hex_img:
+    printer.writeCharacteristic(6, codecs.decode(hex_str, 'hex'))
 
-    printer.disconnect()
+printer.disconnect()
+```
 
 ## Image
 
-How image is decoded? Who knows?
+How iPring encodes an image to print? Idk actually. Even now after reverse of iPrint and faking the entire process.
 
-Reverse image:
+What do we see?
 
-    with open('rfid_metka.json') as j_file:
-        rfid_metka_json = json.load(j_file)
-
-    rfid_metka_hex = [val['_source']['layers']['btatt']['btatt.value'] for val in rfid_metka_json]
-    rfid_metka_hex = [val.replace(':', '') for val in rfid_metka_hex]
-
-    # from arry to str
-    rfid_metka_hex = ''.join(rfid_metka_hex)
-    with open('ble_printer/rfid-metka-picture.pichex', 'w') as h_file:
-        h_file.write(rfid_metka_hex)
-
-Image encoded to an array of dots with *Floyd–Steinberg dithering*.
-
-Data stream starts and ands with `5178a30001000000ff`.
-
-### How to comtile an image from .pcap
+<details><summary>How to dump from wireshark</summary>
+<p>
 
 1. Export image's packages as JSON (Good filter: `bluetooth.addr==b7:26:a2:0d:ca:66`)
 
-Image starts with 'headers':
+2. Extract hex data with Python
 
-        5178a30001000000ff
-        5178a40001003399ff
-        5178a6000b00aa551738445f5f5f44382ca1ff
-        5178af000200e02e89ff
-        5178be0001000000ff
-        5178bd0001001e5aff
-        5178bf0004007f7f7f03a8ff
+    ```py
+    with open('reverse_stuff/rfid-metka-picture.json') as j_file:
+        pic_json = json.load(j_file)
 
-Ends with 'footers':
+    pic_hex = [val['_source']['layers']['btatt']['btatt.value'] for val in pic_json]
+    pic_hex = [val.replace(':', '') for val in pic_hex]
 
-        5178bd000100194fff
-        5178a10002003000f9ff
-        5178a10002003000f9ff
-        5178bd000100194fff
-        5178a6000b00aa5517000000000000001711ff
-        5178a30001000000ff
+    # from arry to str
+    pic_hex = ''.join(pic_hex)
 
+    with open('reverse_stuff/rfid-metka-picture.pichex', 'w') as h_file:
+        h_file.write(pic_hex)
+    ```
+
+</p>
+</details>
+
+
+- A printed image looks like Floyd–Steinberg dithering algorithm was used.
+- No standard printer ESP/bla-bla codes.
+- Image starts with 'headers':
+
+      5178a30001000000ff
+      5178a40001003399ff
+      5178a6000b00aa551738445f5f5f44382ca1ff
+      5178af000200e02e89ff
+      5178be0001000000ff
+      5178bd0001001e5aff
+      5178bf0004007f7f7f03a8ff
+
+- Image ends with 'footers':
+
+      5178bd000100194fff
+      5178a10002003000f9ff
+      5178a10002003000f9ff
+      5178bd000100194fff
+      5178a6000b00aa5517000000000000001711ff
+      5178a30001000000ff
+
+- Each line starts with `5178a2003000`.
 
 ## iPrint reverse engenering
 
@@ -458,8 +386,6 @@ How to decompile:
     $ mkdir iPrint && cp iPrint\(com.frogtosea.iprint\)-1.1.0\(18\)-base.apk iPrint/ && cd iPrint
     $ mv iPrint\(com.frogtosea.iprint\)-1.1.0\(18\)-base.apk iPrint.zip && unzip iPrint.zip
     $ jadx classes.dex
-
-
 
 ## TODO
 
