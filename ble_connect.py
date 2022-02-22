@@ -8,10 +8,11 @@ MTU = 123
 
 def image_from_wireshark_dump(i_file):
     with open(i_file) as j_file:
-        rfid_metka_json = json.load(j_file)
-    rfid_metka_hex = [val['_source']['layers']['btatt']['btatt.value'] for val in rfid_metka_json]
-    rfid_metka_hex = [val.replace(':', '') for val in rfid_metka_hex]
-    return rfid_metka_hex
+        pic_json = json.load(j_file)
+    pic_hex = [val['_source']['layers']['btatt']['btatt.value'] for val in pic_json]
+    pic_hex = [val.replace(':', '') for val in pic_hex]
+    pic_hex = ''.join(pic_hex)
+    return pic_hex
 
 
 def image_from_file(i_file):
@@ -45,8 +46,8 @@ if __name__ == '__main__':
     printer.writeCharacteristic(6, codecs.decode('5178a80001000000ff5178a30001000000ff', 'hex'))
     printer.writeCharacteristic(6, codecs.decode('5178bb0001000107ff', 'hex'))
 
-    # image = image_from_wireshark_dump(i_file)
-    image = ''
+    image = image_from_wireshark_dump(i_file)
+    # image = ''
 
     from textwrap import wrap
 
