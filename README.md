@@ -7,6 +7,9 @@ Goals:
 -[ ] Be able to pring from laptop
   -[x] Reverse the transmission protocol
   -[ ] Reverse the image's processing mechanism
+- [ ] Printer autodefinifg
+    - [ ] How iPring automatically defines which device is a printer?
+    - [ ] Which information the printer advertizes?
 
 
 - [Bluetooth Termal Printer](#bluetooth-termal-printer)
@@ -18,7 +21,6 @@ Goals:
     - [Connect with Python](#connect-with-python)
   - [Image](#image)
   - [iPrint reverse engenering](#iprint-reverse-engenering)
-  - [TODO](#todo)
 
 
 ## The Cat Printer
@@ -368,6 +370,7 @@ What do we see?
 
 - Image ends with 'footers':
 
+      5178bf0004007f7f7f03a8ff
       5178bd000100194fff
       5178a10002003000f9ff
       5178a10002003000f9ff
@@ -386,12 +389,3 @@ How to decompile:
     $ mkdir iPrint && cp iPrint\(com.frogtosea.iprint\)-1.1.0\(18\)-base.apk iPrint/ && cd iPrint
     $ mv iPrint\(com.frogtosea.iprint\)-1.1.0\(18\)-base.apk iPrint.zip && unzip iPrint.zip
     $ jadx classes.dex
-
-## TODO
-
-- [ ] Printer autodefinifg
-    - [ ] How iPring automatically defines which device is a printer?
-    - [ ] Which information the printer advertizes?
-
-
-p=$(pidof com.frogtosea.iprint); echo "Getting logs from $p"; logcat --pid=$p
