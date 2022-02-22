@@ -354,7 +354,7 @@ ATT package structure:
 
 #### Print
 
-Pokets each of 132 bytes.
+Packets each of 132 bytes.
 
 Service: `0xae30`, Characteristic: `0xae01` (**WRITE NO RESPONSE**)
 
@@ -449,11 +449,23 @@ Ends with 'footers':
         5178a30001000000ff
 
 
+## iPrint reverse engenering
+
+To get the information about an image encoding I had reversed iPring app.
+
+How to decompile:
+
+    $ mkdir iPrint && cp iPrint\(com.frogtosea.iprint\)-1.1.0\(18\)-base.apk iPrint/ && cd iPrint
+    $ mv iPrint\(com.frogtosea.iprint\)-1.1.0\(18\)-base.apk iPrint.zip && unzip iPrint.zip
+    $ jadx classes.dex
+
+
+
 ## TODO
 
-- [x] Write log with filtering
-  - [-] Find all log tags
-- [ ] Find timeout
+- [ ] Printer autodefinifg
+    - [ ] How iPring automatically defines which device is a printer?
+    - [ ] Which information the printer advertizes?
 
 
 p=$(pidof com.frogtosea.iprint); echo "Getting logs from $p"; logcat --pid=$p

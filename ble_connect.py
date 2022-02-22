@@ -18,6 +18,7 @@ def image_from_file(i_file):
     with open(i_file) as j_file:
         rfid_metka_json = json.load(j_file)
 
+
 if __name__ == '__main__':
     try:
         i_file = sys.argv[1]
