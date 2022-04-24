@@ -389,3 +389,8 @@ How to decompile:
     $ mkdir iPrint && cp iPrint\(com.frogtosea.iprint\)-1.1.0\(18\)-base.apk iPrint/ && cd iPrint
     $ mv iPrint\(com.frogtosea.iprint\)-1.1.0\(18\)-base.apk iPrint.zip && unzip iPrint.zip
     $ jadx classes.dex
+
+I had spent a lot of time reading the code and eventually found the part with an image transformation.
+You can see it in [BitmapTest](BitmapTest/) directory as part of my testing app. It also gave me a couple of constants which my printer model is defined by.
+
+I want to shed the light on the most puzzling part of image transformation. There a bit of math in it.
