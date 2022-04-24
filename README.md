@@ -1,6 +1,6 @@
 # Bluetooth Termal Printer
 
-I love BLE stuff, it's awesome eseptially in reverse context. In this repo I am doing reverse engineering of the [cute catish termal printer from Aliexpress](https://aliexpress.ru/item/1005002722811359.html). This includes transmission protocol and Android app because of images encoding.
+I love BLE stuff. It's awesome eseptially in reverse engenering context. In this repo I do reverse engineering of the [cute catish termal printer from Aliexpress](https://aliexpress.ru/item/1005002722811359.html). This includes transmission protocol and it's Android app because of images encoding.
 
 Goals:
 
